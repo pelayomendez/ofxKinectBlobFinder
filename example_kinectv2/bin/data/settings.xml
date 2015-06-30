@@ -1,0 +1,70 @@
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMin.x</Name>
+    <Value>-8.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMin.y</Name>
+    <Value>-8.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMin.z</Name>
+    <Value>-0.238095522</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMax.x</Name>
+    <Value>8.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMax.y</Name>
+    <Value>8.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>boundsMax.z</Name>
+    <Value>2.063492060</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>thresh3D.x</Name>
+    <Value>0.200000003</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>thresh3D.y</Name>
+    <Value>0.200000003</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>thresh3D.z</Name>
+    <Value>0.013888889</Value>
+</Widget>
+<Widget>
+    <Kind>42</Kind>
+    <Name>thresh2D</Name>
+    <Value>5</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>minVol</Name>
+    <Value>0.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>maxVol</Name>
+    <Value>7.341269970</Value>
+</Widget>
+<Widget>
+    <Kind>42</Kind>
+    <Name>minPoints</Name>
+    <Value>430</Value>
+</Widget>
+<Widget>
+    <Kind>42</Kind>
+    <Name>maxBlobs</Name>
+    <Value>58</Value>
+</Widget>

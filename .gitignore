@@ -1,6 +1,7 @@
 *.app
 *.xcuserstate
 *.xcuserdatad
+xcuserdata
 DerivedData
 
 # Compiled source #

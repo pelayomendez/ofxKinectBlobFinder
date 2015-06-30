@@ -30,4 +30,6 @@ class ofApp : public ofBaseApp{
         Kinect2Manager kinect;
         ofxKinect2BlobFinder tracker;
         ofImage maskImage;
+    
+        ofxUICanvas * gui;
 };

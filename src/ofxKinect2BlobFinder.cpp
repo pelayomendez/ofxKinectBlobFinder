@@ -273,7 +273,7 @@ bool ofxKinect2BlobFinder::createCloud( unsigned char * maskPix,
                if (bStandarized) thePos = ofVec3f(thePos.x,thePos.z,-thePos.y);
                 
                 
-                if ( !bTraced ) cout << thePos << endl;
+//                if ( !bTraced ) cout << thePos << endl;
                 
              /*   thePos = ofVec3f( float((i - cx_d) * z * fx_d),
                                   z,
@@ -294,7 +294,7 @@ bool ofxKinect2BlobFinder::createCloud( unsigned char * maskPix,
                 }
                 else (*p3Dptr).flag = FLAG_IDLE;
                 
-                if ( !bTraced ) cout << (*p3Dptr).flag << endl;
+//                if ( !bTraced ) cout << (*p3Dptr).flag << endl;
                 
                 (*p3Dptr).pos = thePos;
             }
@@ -306,7 +306,7 @@ bool ofxKinect2BlobFinder::createCloud( unsigned char * maskPix,
         maskPix += row_incr;
         
         bTraced = true;
-        if ( ofGetKeyPressed('d')) bTraced = false;
+//        if ( ofGetKeyPressed('d')) bTraced = false;
     }
     return true;
 }
