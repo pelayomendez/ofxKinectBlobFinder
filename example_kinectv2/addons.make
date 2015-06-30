@@ -1,0 +1,4 @@
+ofxKinectBlobFinder
+ofxMultiKinectV2
+addons
+ofxTurboJpeg
