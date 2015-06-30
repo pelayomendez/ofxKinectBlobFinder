@@ -13,6 +13,8 @@ int maxBlobs = 10;
 
 ofEasyCam camera;
 
+float depthThreshold = 500;
+
 
 //--------------------------------------------------------------
 void ofApp::setup(){
@@ -52,7 +54,12 @@ void ofApp::setup(){
     gui->addIntSlider("minPoints", 0, 500, &minPoints);
     gui->addIntSlider("maxBlobs", 0, 100, &maxBlobs);
     
+    gui->addSlider("depthThreshold", 0, 8000., &depthThreshold);
+    
+    
     gui->loadSettings("settings.xml");
+    
+    
     
 //    camera.disableMouseInput();
 }
@@ -78,6 +85,21 @@ void ofApp::update(){
     if ( tracker.isInited() ){
         tracker.findBlobs(&maskImage, boxMin, boxMax, thresh3D, thresh2D, minVol, maxVol, minPoints, maxBlobs );
     }
+    
+//    Removing this, not very effective
+//    if ( ofGetKeyPressed(' ')){
+//        auto * d = kinect.getKinect().getDepthPixelsRef().getData();
+//        auto * p = maskImage.getPixels().getData();
+//        for ( int i=0; i< 512 * 424; i++){
+//            if ( d[i] > depthThreshold ){
+//                p[i] = 255;
+//            } else {
+//                p[i] = 0;
+//            }
+//        }
+//        maskImage.setFromPixels(p, maskImage.getWidth(), maskImage.getHeight(), OF_IMAGE_GRAYSCALE);
+//        maskImage.update();
+//    }
 }
 
 //--------------------------------------------------------------
@@ -88,6 +110,8 @@ void ofApp::draw(){
     ofSetColor(255);
     
     if ( tracker.isInited() ){
+        
+        maskImage.draw(0,0);
         
         glPointSize(2.0);
         
