@@ -107,7 +107,15 @@ void ofApp::draw(){
             ofSetColor(color);
             // draw blobs
             tracker.blobs[i].draw();
+            
             ofPopMatrix();
+            
+            ofVec3f bbMax = tracker.blobs[i].boundingBoxMax;
+            ofVec3f bbMin = tracker.blobs[i].boundingBoxMin;
+            
+            ofNoFill();
+            ofDrawBox(tracker.blobs[i].centroid, tracker.blobs[i].dimensions.x, tracker.blobs[i].dimensions.y, tracker.blobs[i].dimensions.z);
+            ofFill();
         }
         ofSetColor(255);
         ofDisableDepthTest();
