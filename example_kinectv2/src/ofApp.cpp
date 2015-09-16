@@ -1,134 +1,142 @@
 #include "ofApp.h"
 
-ofVec3f boxMin(-8,-8,-8);
-ofVec3f boxMax(8,8,8);
-ofVec3f thresh3D(0.2,.2,.3);
-
-int thresh2D = 100;
-float minVol = 0.;
-float maxVol = 50000.;
-
-int minPoints = 0;
-int maxBlobs = 10;
-
-ofEasyCam camera;
-
-float depthThreshold = 500;
+#define DEPTH_WIDTH 512
+#define DEPTH_HEIGHT 424
+#define DEPTH_SIZE DEPTH_WIDTH * DEPTH_HEIGHT
 
 
 //--------------------------------------------------------------
-void ofApp::setup(){
-    ofBackground(255);
-    ofSetVerticalSync(true);
-    kinect.setup();
-    maskImage.allocate(512, 424, OF_IMAGE_GRAYSCALE);
-    maskImage.setColor(ofColor(255,0,0));
-    maskImage.update();
+void ofApp::setup() {
+	ofBackground(255);
+	ofSetVerticalSync(true);
+
+	kinect.open();
+	kinect.initDepthSource();
+
+    depthImg.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_GRAYSCALE);
+    depthImg.setColor(ofColor::black);
+    depthImg.update();
     
     float sqrResolution = tracker.getResolution();
     sqrResolution *= sqrResolution;
-//    minPoints = (int)(0.001*(float)(512 * 424)/sqrResolution);
+	//minPoints = (int)(0.001*(float)(512 * 424)/sqrResolution);
     
     camera.setPosition(ofGetWidth()/4.0, ofGetHeight()/2.0, 1000.);
+	camera.lookAt(ofVec3f(0));
+
+	thresholdNear.set("Threshold Near", 1, 0.1, 5);
+	thresholdFar.set("Threshold Far", 2.2, 0.1, 8);
+
+	boxMin.set("boxMin", ofVec3f(-8), ofVec3f(-10), ofVec3f( 0));
+	boxMax.set("boxMax", ofVec3f( 8), ofVec3f(  0), ofVec3f(10));
+	thresh3D.set("thresh3D", ofVec3f(.2, .2, .3), ofVec3f(0), ofVec3f(1));
+
+	thresh2D.set("thresh2D", 1, 0, 255);
+	minVol.set("minVol", 0.02, 0, 10);
+	maxVol.set("maxVol", 2, 0, 100);
+	minPoints.set("minPoints", 50, 0, 500);
+	maxBlobs.set("maxBlobs", 10, 0, 100);
+	trackedBlobs.set("trackdBlobs", 0, 0, maxBlobs);
+
+	gui.setup("Settings", "settings.xml");
+	gui.add(thresholdNear);
+	gui.add(thresholdFar);
+	gui.add(boxMin);
+	gui.add(boxMax);
+	gui.add(thresh3D);
+	gui.add(thresh2D);
+	gui.add(minVol);
+	gui.add(maxVol);
+	gui.add(minPoints);
+	gui.add(maxBlobs);
+	gui.add(trackedBlobs);
+	gui.loadFromFile("settings.xml");
+
+	visible = true;
+	save = false;
     
-    gui = new ofxUICanvas(0,0, ofGetWidth()/2.0, ofGetHeight());
-    
-    gui->addSlider("boundsMin.x", -8, 16., &boxMin.x);
-    gui->addSlider("boundsMin.y", -8, 16., &boxMin.y);
-    gui->addSlider("boundsMin.z", -8, 16., &boxMin.z);
-    
-    gui->addSlider("boundsMax.x", 0, 16., &boxMax.x);
-    gui->addSlider("boundsMax.y", 0, 16., &boxMax.y);
-    gui->addSlider("boundsMax.z", 0, 16., &boxMax.z);
-    
-    
-    gui->addSlider("thresh3D.x", 0, 1., &thresh3D.x);
-    gui->addSlider("thresh3D.y", 0, 1., &thresh3D.y);
-    gui->addSlider("thresh3D.z", 0, 1., &thresh3D.z);
-    
-    gui->addIntSlider("thresh2D", 0, 255, &thresh2D);
-    
-    gui->addSlider("minVol", 0, 100, &minVol);
-    gui->addSlider("maxVol", 0, 100, &maxVol);
-    
-    gui->addIntSlider("minPoints", 0, 500, &minPoints);
-    gui->addIntSlider("maxBlobs", 0, 100, &maxBlobs);
-    
-    gui->addSlider("depthThreshold", 0, 8000., &depthThreshold);
-    
-    
-    gui->loadSettings("settings.xml");
-    
-    
-    
-//    camera.disableMouseInput();
 }
-
-
-
-
-bool visible = false;
-bool save = false;
 
 //--------------------------------------------------------------
 void ofApp::update(){
+
     static bool bTrackerInit = false;
     
-    bool bNewFrame = kinect.update();
+	kinect.update();
     
     // kinect 2 init is async, so just chill till it's ready, OK?
-    if ( bNewFrame && !bTrackerInit ){
-        bTrackerInit = true;
-        tracker.init(&kinect.getKinect(), false);
+    if (kinect.getDepthSource()->isFrameNew()) {
+		if (!bTrackerInit) {
+			bTrackerInit = true;
+			tracker.init(&kinect, false);
+			tracker.setScale(ofVec3f(0.001));
+		}
+
+		updateDepthImage();
     }
     
     if ( tracker.isInited() ){
-        tracker.findBlobs(&maskImage, boxMin, boxMax, thresh3D, thresh2D, minVol, maxVol, minPoints, maxBlobs );
+        tracker.findBlobs(&depthImg, boxMin, boxMax, thresh3D, thresh2D, minVol, maxVol, minPoints, maxBlobs );
+		trackedBlobs = tracker.nBlobs;
     }
-    
-//    Removing this, not very effective
-//    if ( ofGetKeyPressed(' ')){
-//        auto * d = kinect.getKinect().getDepthPixelsRef().getData();
-//        auto * p = maskImage.getPixels().getData();
-//        for ( int i=0; i< 512 * 424; i++){
-//            if ( d[i] > depthThreshold ){
-//                p[i] = 255;
-//            } else {
-//                p[i] = 0;
-//            }
-//        }
-//        maskImage.setFromPixels(p, maskImage.getWidth(), maskImage.getHeight(), OF_IMAGE_GRAYSCALE);
-//        maskImage.update();
-//    }
+
+}
+
+//--------------------------------------------------------------
+void ofApp::updateDepthImage() {
+	if (!depthImg.isAllocated()) {
+		depthImg.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_GRAYSCALE);
+	}
+
+	ofShortPixels pix;
+	pix.allocate(DEPTH_WIDTH, 1, OF_IMAGE_GRAYSCALE);
+
+	auto& depthPix = kinect.getDepthSource()->getPixels();
+	for (int y = 0; y < DEPTH_HEIGHT; y++) {
+		for (int x = 0; x < DEPTH_WIDTH; x++) {
+			int index = x + (y*DEPTH_WIDTH);
+
+			// Build the 8bit, thresholded image for drawing to screen
+			if (depthPix.getWidth() && depthPix.getHeight()) {
+				// Multiply thresholds by 1000 because the values are in meters in world
+				// space but in mm in the depthPix array
+				float depth = depthPix[index];
+				float val = depth == 0 ? 0 : ofMap(depth, thresholdNear * 1000, thresholdFar * 1000, 255, 0, true);
+				depthImg.setColor(x, y, ofColor(val));
+			}
+		}
+	}
+
+	depthImg.update();
+
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    if ( ofGetKeyPressed('k'))
-        kinect.draw();
     
-    ofSetColor(255);
+	ofSetColor(ofColor::white);
     
     if ( tracker.isInited() ){
         
-        maskImage.draw(0,0);
+        depthImg.draw(ofGetWidth()-DEPTH_WIDTH/2., 0, DEPTH_WIDTH/2., DEPTH_HEIGHT/2.);
         
         glPointSize(2.0);
-        
         ofPushMatrix();
         camera.begin();
-//        ofTranslate(ofGetWidth()/2.0, 0.);
-        ofScale(100., 100.,100.);
+
+        //ofTranslate(ofGetWidth()/2.0, 0.);
+        ofScale(100., 100., 100.);
         ofEnableDepthTest();
-//        glPointSize(1);
+
         // draw blobs
         for (unsigned int i=0; i < tracker.blobs.size(); i++) {
             ofPushMatrix();
             ofColor color;
-            color.setSaturation(255);
-            color.setBrightness(150);
-            color.setHue(ofMap(i,0, tracker.blobs.size(), 0, 255));
-            ofSetColor(color);
+            color.setSaturation(200);
+            color.setBrightness(225);
+            color.setHue(ofMap(i, 0, tracker.blobs.size(), 0, 255));
+
+			ofSetColor(color);
             // draw blobs
             tracker.blobs[i].draw();
             
@@ -146,7 +154,7 @@ void ofApp::draw(){
         camera.end();
         ofPopMatrix();
         
-        ofDrawBitmapString(ofToString(tracker.blobs.size()), 50, 60);
+		if (visible) gui.draw();
         
     }
     
@@ -157,14 +165,12 @@ void ofApp::keyPressed(int key){
 //    return; // currently effed in 0.9.0 on github!
     
     if ( key == 'g' ){
-        visible = false;
-        gui->toggleVisible();
+		visible ^= 1;
     }
     
     if ( key == 's' ){
-        save = false;
-        
-        gui->saveSettings("settings.xml");
+        //save = false;
+        //gui->saveSettings("settings.xml");
     }
 }
 

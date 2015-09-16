@@ -23,8 +23,9 @@
 #define FLAG_QUEUED -2
 #define FLAG_PROCESSED -1
 
-#define __DEFAULT_K_WIDTH 640
-#define __DEFAULT_K_HEIGHT 480
+#define __DEFAULT_K_WIDTH 512
+#define __DEFAULT_K_HEIGHT 424
+#define __DEFAULT_K_SIZE __DEFAULT_K_WIDTH * __DEFAULT_K_HEIGHT
 
 #define __DEFAULT_RESOLUTION BF_LOW_RES
 
@@ -40,32 +41,36 @@ static float cy_d = 2.4273913761751615e+02;
 //                                CONSTRUCTORS
 // ***************************************************************************
 ofxKinectBlobFinder::ofxKinectBlobFinder() {
-    ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: creating");
-    p3DCloud = NULL;
-    kinectPtr = NULL;
-    setResolution(BF_MEDIUM_RES);
-    setRotation(ofVec3f(0,0,0));
-    setTranslation(ofVec3f(0,0,0));
-    nullPoint = ofVec3f(0,0,0);
-    nBlobs = 0;
+	ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: creating");
+	p3DCloud = NULL;
+	kinectPtr = NULL;
+	setResolution(BF_MEDIUM_RES);
+	setRotation(ofVec3f(0, 0, 0));
+	setTranslation(ofVec3f(0, 0, 0));
+	nullPoint = ofVec3f(0, 0, 0);
+	nBlobs = 0;
 }
 
 // ***************************************************************************
 //                                INIT
 // ***************************************************************************
-void ofxKinectBlobFinder::init(ofxKinect *newKinect, bool standarized) {
+void ofxKinectBlobFinder::init(ofxKFW2::Device *newKinect, bool standarized) {
 
-    ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: init");
-    if (newKinect == NULL) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - ofxKinect pointer is not assigned");
-    else if (!newKinect->isConnected()) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - kinect not connected");
-    else {
-        bStandarized = standarized;
-        kinectPtr = newKinect;
-        kWidth = kinectPtr->getWidth();
-        kHeight = kinectPtr->getHeight();
-        kNPix = kWidth*kHeight;
-        bFinderInited = setResolution(__DEFAULT_RESOLUTION);
-    }
+	ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: init");
+	if (newKinect == NULL) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - ofxKinect pointer is not assigned");
+	else if (!newKinect->isOpen()) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - kinect not connected");
+	else {
+		bStandarized = standarized;
+		kinectPtr = newKinect;
+		kWidth = __DEFAULT_K_WIDTH; // kinectPtr->getDepthSource()->getWidth();
+		kHeight = __DEFAULT_K_HEIGHT; // kinectPtr->getDepthSource()->getHeight();
+		kNPix = kWidth*kHeight;
+		bFinderInited = setResolution(__DEFAULT_RESOLUTION);
+
+		if (kinectPtr->getSensor()->get_CoordinateMapper(&mapper) < 0) {
+			ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - could not acquire CoordinateMapper");
+		}
+	}
 }
 
 // ***************************************************************************
@@ -77,20 +82,29 @@ void ofxKinectBlobFinder::init(ofxKinect *newKinect, bool standarized) {
 
 // ***************************************************************************
 
-bool ofxKinectBlobFinder::findBlobs( ofImage * maskImage,
-                            const ofVec3f boundingBoxMin, const ofVec3f boundingBoxMax,
-                            const ofVec3f thresh3D, const int thresh2D,
-                            const float minVol, const float maxVol,
-                            const int minPoints, const unsigned int maxBlobs )
+bool ofxKinectBlobFinder::findBlobs(ofImage * maskImage,
+	const ofVec3f boundingBoxMin, const ofVec3f boundingBoxMax,
+	const ofVec3f thresh3D, const int thresh2D,
+	const float minVol, const float maxVol,
+	const int minPoints, const unsigned int maxBlobs)
 {
-    if ( !bFinderInited ) {
-        ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - must init finder first");
-        return false;
-    }
-    if ( !maskImage->bAllocated() || (maskImage->getWidth() != kWidth) || (maskImage->getHeight() != kHeight) ||
-         (maskImage->bpp != 8) ) {
-             ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask image mismatch");
-             return false;
+	if (!bFinderInited) {
+		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - must init finder first");
+		return false;
+	}
+	if (!maskImage->bAllocated()) {
+		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask not allocated");
+		return false;
+	}
+	if ((maskImage->getWidth() != kWidth) || (maskImage->getHeight() != kHeight) ) {
+		ofLogWarning() << "ofxKinectBlobFinder: findBlobs - mask image mismatch :: maskImage: "
+			<< ofVec2f(maskImage->getWidth(), maskImage->getHeight()) << ", should be: "
+			<< ofVec2f(kWidth, kHeight);
+		return false;
+	}
+	if (maskImage->getPixels().getBitsPerPixel() != 8) {
+		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask not 8bpp");
+		return false;
     }
     if (!createCloud(maskImage->getPixels(), boundingBoxMin, boundingBoxMax) ) {
         ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - could not create pointcloud");
@@ -103,7 +117,9 @@ bool ofxKinectBlobFinder::findBlobs( ofImage * maskImage,
     int pixIndex = 0;
 
     int pixelsToProcess = nPix;
-    int queue[nPix];
+    //int queue[nPix];
+	vector<int> queue;
+	queue.resize(nPix);
 
     blobs.clear();
     int numBlobs = 0;
@@ -231,19 +247,25 @@ bool ofxKinectBlobFinder::createCloud( unsigned char * maskPix,
                                        const ofVec3f boundingBoxMin, const ofVec3f boundingBoxMax) {
     ofVec3f thePos;
     p2D3 * p3Dptr = &p3DCloud[0];
-    float* distance = kinectPtr->getDistancePixels();
+	vector<ofVec3f> worldCoords;
+	worldCoords.resize(__DEFAULT_K_SIZE);
+
+    unsigned short* distance = kinectPtr->getDepthSource()->getPixels().getData();
+	mapper->MapDepthFrameToCameraSpace(__DEFAULT_K_SIZE, distance, __DEFAULT_K_SIZE, (CameraSpacePoint*) worldCoords.data());
 
     int row_incr = kWidth*(resolution-1);
 
     for (int j = 0; j < kHeight; j+=resolution) {
         for (int i = 0; i < kWidth; i+=resolution) {
             float z = (*distance)*0.001; // mm to m
+			int index = (j*kWidth) + i;
+
             if ( (z == 0) || (*maskPix ==  0) || (z > K_RANGE_MAX) || (z < K_RANGE_MIN) ){
                 (*p3Dptr).flag = FLAG_BACKGROUND;
                 (*p3Dptr).pos = nullPoint;
             }
             else {
-               thePos = kinectPtr->getWorldCoordinateAt(i,j,(*distance));
+			   thePos = worldCoords[index] * 1000;
                if (bStandarized) thePos = ofVec3f(thePos.x,thePos.z,-thePos.y);
 
              /*   thePos = ofVec3f( float((i - cx_d) * z * fx_d),

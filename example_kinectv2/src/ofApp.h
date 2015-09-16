@@ -1,12 +1,9 @@
 #pragma once
 
 #include "ofMain.h"
-
-#include "ofxMultiKinectV2.h"
-#include "Kinect2Utils.h"
-#include "ofxKinect2BlobFinder.h"
-
-#include "ofxUI.h"
+#include "ofxGui.h"
+#include "ofxKinectForWindows2.h"
+#include "ofxKinectBlobFinder.h"
 
 class ofApp : public ofBaseApp{
 
@@ -14,6 +11,8 @@ class ofApp : public ofBaseApp{
 		void setup();
 		void update();
 		void draw();
+
+		void updateDepthImage();
 
 		void keyPressed(int key);
 		void keyReleased(int key);
@@ -27,9 +26,17 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo);
 		void gotMessage(ofMessage msg);
 		
-        Kinect2Manager kinect;
-        ofxKinect2BlobFinder tracker;
-        ofImage maskImage;
+        ofxKFW2::Device kinect;
+        ofxKinectBlobFinder tracker;
+        
+		ofImage depthImg;
+		ofEasyCam camera;
     
-        ofxUICanvas * gui;
+        ofxPanel gui;
+		ofParameter<int> thresh2D, minPoints, maxBlobs, trackedBlobs;
+		ofParameter<float> thresholdNear, thresholdFar, minVol, maxVol;
+		ofParameter<ofVec3f> boxMin, boxMax, thresh3D;
+
+		bool visible, save;
+
 };
