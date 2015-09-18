@@ -42,12 +42,10 @@ static float cy_d = 2.4273913761751615e+02;
 // ***************************************************************************
 ofxKinectBlobFinder::ofxKinectBlobFinder() {
 	ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: creating");
-	p3DCloud = NULL;
 	kinectPtr = NULL;
 	setResolution(BF_MEDIUM_RES);
-	setRotation(ofVec3f(0, 0, 0));
-	setTranslation(ofVec3f(0, 0, 0));
-	nullPoint = ofVec3f(0, 0, 0);
+	setRotation(ofVec3f::zero());
+	setTranslation(ofVec3f::zero());
 	nBlobs = 0;
 }
 
@@ -82,7 +80,7 @@ void ofxKinectBlobFinder::init(ofxKFW2::Device *newKinect, bool standarized) {
 
 // ***************************************************************************
 
-bool ofxKinectBlobFinder::findBlobs(ofImage * maskImage,
+bool ofxKinectBlobFinder::findBlobs(ofMesh* mesh,
 	const ofVec3f boundingBoxMin, const ofVec3f boundingBoxMax,
 	const ofVec3f thresh3D, const int thresh2D,
 	const float minVol, const float maxVol,
@@ -92,21 +90,11 @@ bool ofxKinectBlobFinder::findBlobs(ofImage * maskImage,
 		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - must init finder first");
 		return false;
 	}
-	if (!maskImage->bAllocated()) {
-		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask not allocated");
+	if (mesh->getVertices().empty()) {
+		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mesh is empty");
 		return false;
 	}
-	if ((maskImage->getWidth() != kWidth) || (maskImage->getHeight() != kHeight) ) {
-		ofLogWarning() << "ofxKinectBlobFinder: findBlobs - mask image mismatch :: maskImage: "
-			<< ofVec2f(maskImage->getWidth(), maskImage->getHeight()) << ", should be: "
-			<< ofVec2f(kWidth, kHeight);
-		return false;
-	}
-	if (maskImage->getPixels().getBitsPerPixel() != 8) {
-		ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask not 8bpp");
-		return false;
-    }
-    if (!createCloud(maskImage->getPixels(), boundingBoxMin, boundingBoxMax) ) {
+    if (!createCloud(mesh, boundingBoxMin, boundingBoxMax) ) {
         ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - could not create pointcloud");
         return false;
     }
@@ -149,11 +137,11 @@ bool ofxKinectBlobFinder::findBlobs(ofImage * maskImage,
 
             pixelsToProcess--;
 
-            p2D3 * p3DCloudPoint = &p3DCloud[queueIndexPix];
+            p2D3& p3DCloudPoint = p3DCloud[queueIndexPix];
             // mark pixel as being processed
-            (*p3DCloudPoint).flag = FLAG_PROCESSED;
+            p3DCloudPoint.flag = FLAG_PROCESSED;
 
-            ofVec3f * posPtr = &((*p3DCloudPoint).pos);
+            ofVec3f * posPtr = &p3DCloudPoint.pos;
             float pointX = (* posPtr).x;
             float pointY = (* posPtr).y;
             float pointZ = (* posPtr).z;
@@ -243,58 +231,41 @@ bool ofxKinectBlobFinder::findBlobs(ofImage * maskImage,
 //                CREATE POINT CLOUD AND SCALE IMAGES
 // ************************************************************
 
-bool ofxKinectBlobFinder::createCloud( unsigned char * maskPix,
+bool ofxKinectBlobFinder::createCloud( ofMesh* mesh,
                                        const ofVec3f boundingBoxMin, const ofVec3f boundingBoxMax) {
-    ofVec3f thePos;
-    p2D3 * p3Dptr = &p3DCloud[0];
-	vector<ofVec3f> worldCoords;
-	worldCoords.resize(__DEFAULT_K_SIZE);
+	p2D3 point;
+	ofVec3f pos;
+	p3DCloud.clear();
 
-    unsigned short* distance = kinectPtr->getDepthSource()->getPixels().getData();
-	mapper->MapDepthFrameToCameraSpace(__DEFAULT_K_SIZE, distance, __DEFAULT_K_SIZE, (CameraSpacePoint*) worldCoords.data());
+	for (auto& v : mesh->getVertices()) {
 
-    int row_incr = kWidth*(resolution-1);
+		if ((v.z == 0) || (v.z > K_RANGE_MAX) || (v.z < K_RANGE_MIN)) {
+			point.flag = FLAG_BACKGROUND;
+			point.pos = ofVec3f::zero();
+		}
+		else {
+			pos = v * 1000;
+			if (bStandarized) pos = ofVec3f(pos.x, pos.z, -pos.y);
 
-    for (int j = 0; j < kHeight; j+=resolution) {
-        for (int i = 0; i < kWidth; i+=resolution) {
-            float z = (*distance)*0.001; // mm to m
-			int index = (j*kWidth) + i;
+			// the order of rotation matters!!!
+			pos *= scale;
+			pos.rotate(rotation.x, 0, 0);
+			pos.rotate(0, rotation.y, 0);
+			pos.rotate(0, 0, rotation.z);
+			pos += translation;
 
-            if ( (z == 0) || (*maskPix ==  0) || (z > K_RANGE_MAX) || (z < K_RANGE_MIN) ){
-                (*p3Dptr).flag = FLAG_BACKGROUND;
-                (*p3Dptr).pos = nullPoint;
-            }
-            else {
-			   thePos = worldCoords[index] * 1000;
-               if (bStandarized) thePos = ofVec3f(thePos.x,thePos.z,-thePos.y);
+			if ((pos.x < boundingBoxMin.x) || (pos.x > boundingBoxMax.x) ||
+				(pos.y < boundingBoxMin.y) || (pos.y > boundingBoxMax.y) ||
+				(pos.z < boundingBoxMin.z) || (pos.z > boundingBoxMax.z)
+				) {
+				point.flag = FLAG_OFF_THRESHOLD;
+			}
+			else point.flag = FLAG_IDLE;
+			point.pos = pos;
+		}
+		p3DCloud.push_back(point);
+	}
 
-             /*   thePos = ofVec3f( float((i - cx_d) * z * fx_d),
-                                  z,
-                                  -float((j - cy_d) * z * fy_d));
-*/
-                // the order of rotation matters!!!
-                thePos *= scale;
-                thePos.rotate(rotation.x, 0, 0);
-                thePos.rotate(0, rotation.y, 0);
-                thePos.rotate(0, 0, rotation.z);
-                thePos += translation;
-
-                if ( (thePos.x < boundingBoxMin.x) || (thePos.x > boundingBoxMax.x) ||
-                     (thePos.y < boundingBoxMin.y) || (thePos.y > boundingBoxMax.y) ||
-                     (thePos.z < boundingBoxMin.z) || (thePos.z > boundingBoxMax.z)
-                    ) {
-                     (*p3Dptr).flag = FLAG_OFF_THRESHOLD;
-                }
-                else (*p3Dptr).flag = FLAG_IDLE;
-                (*p3Dptr).pos = thePos;
-            }
-            p3Dptr++;
-            distance += resolution;
-            maskPix += resolution;
-            }
-        distance += row_incr;
-        maskPix += row_incr;
-    }
     return true;
 }
 
@@ -338,14 +309,14 @@ ofVec3f ofxKinectBlobFinder::getScale() {
 //                SET ANALYSIS/POINTCLOUD RESOLUTON
 // ************************************************************
 bool ofxKinectBlobFinder::setResolution(ofxKinectBlobFinderResolution newResolution) {
-    if ((p3DCloud == NULL) || (resolution != newResolution)) {
+    if ((p3DCloud.empty()) || (resolution != newResolution)) {
         resolution = newResolution;
         width = kWidth / resolution;
         height = kHeight / resolution;
         nPix = width*height;
-        if (p3DCloud != NULL) free(p3DCloud);
-        p3DCloud = (p2D3*)calloc( nPix, sizeof(struct p2D3));
-        if (p3DCloud == NULL) {
+		if (p3DCloud.size()) p3DCloud.clear();
+		p3DCloud.resize(nPix);
+        if (p3DCloud.empty()) {
             ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: setResolution - error allocating memory for pointcloud ");
             return false;
         }

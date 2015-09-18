@@ -12,33 +12,35 @@ void ofApp::setup() {
 
 	kinect.open();
 	kinect.initDepthSource();
+	kinect.getSensor()->get_CoordinateMapper(&mapper);
 
     depthImg.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_GRAYSCALE);
     depthImg.setColor(ofColor::black);
     depthImg.update();
-    
-    float sqrResolution = tracker.getResolution();
-    sqrResolution *= sqrResolution;
-	//minPoints = (int)(0.001*(float)(512 * 424)/sqrResolution);
+
+	tracker.setResolution(BF_HIGH_RES);
     
     camera.setPosition(ofGetWidth()/4.0, ofGetHeight()/2.0, 1000.);
 	camera.lookAt(ofVec3f(0));
+	mesh.setMode(OF_PRIMITIVE_POINTS);
 
-	thresholdNear.set("Threshold Near", 1, 0.1, 5);
-	thresholdFar.set("Threshold Far", 2.2, 0.1, 8);
+	bDrawRawMesh.set("Draw Raw Mesh", false);
+	thresholdNear.set("Threshold Near", 0.1, 0.1, 5);
+	thresholdFar.set("Threshold Far", 1.5, 0.1, 8);
 
 	boxMin.set("boxMin", ofVec3f(-8), ofVec3f(-10), ofVec3f( 0));
 	boxMax.set("boxMax", ofVec3f( 8), ofVec3f(  0), ofVec3f(10));
-	thresh3D.set("thresh3D", ofVec3f(.2, .2, .3), ofVec3f(0), ofVec3f(1));
+	thresh3D.set("thresh3D", ofVec3f(.05), ofVec3f(0), ofVec3f(1));
 
-	thresh2D.set("thresh2D", 1, 0, 255);
-	minVol.set("minVol", 0.02, 0, 10);
+	thresh2D.set("thresh2D", 1, 0, 10);
+	minVol.set("minVol", 0.01, 0, 10);
 	maxVol.set("maxVol", 2, 0, 100);
 	minPoints.set("minPoints", 50, 0, 500);
 	maxBlobs.set("maxBlobs", 10, 0, 100);
 	trackedBlobs.set("trackdBlobs", 0, 0, maxBlobs);
 
 	gui.setup("Settings", "settings.xml");
+	gui.add(bDrawRawMesh);
 	gui.add(thresholdNear);
 	gui.add(thresholdFar);
 	gui.add(boxMin);
@@ -73,10 +75,11 @@ void ofApp::update(){
 		}
 
 		updateDepthImage();
+		updateMesh();
     }
     
     if ( tracker.isInited() ){
-        tracker.findBlobs(&depthImg, boxMin, boxMax, thresh3D, thresh2D, minVol, maxVol, minPoints, maxBlobs );
+        tracker.findBlobs(&mesh, boxMin, boxMax, thresh3D, thresh2D, minVol, maxVol, minPoints, maxBlobs );
 		trackedBlobs = tracker.nBlobs;
     }
 
@@ -112,10 +115,38 @@ void ofApp::updateDepthImage() {
 }
 
 //--------------------------------------------------------------
+void ofApp::updateMesh() {
+
+	// Map depth frame to world space
+	vector<ofVec3f> worldCoords;
+	worldCoords.resize(DEPTH_SIZE);
+
+	auto& depthPix = kinect.getDepthSource()->getPixels();
+	mapper->MapDepthFrameToCameraSpace(DEPTH_SIZE, (UINT16* )depthPix.getPixels(), DEPTH_SIZE, (CameraSpacePoint*) worldCoords.data());
+
+	// Build the mesh
+	mesh.clear();
+	for (int y = 0; y < DEPTH_HEIGHT; y += tracker.getResolution()) {
+		for (int x = 0; x < DEPTH_WIDTH; x += tracker.getResolution()) {
+			int index = x + (y*DEPTH_WIDTH);
+			float z = worldCoords[index].z;
+
+			// Set an empty point (but don't discard it) if  depth value is
+			// outside of thresholds
+			if (z == 0 || z < thresholdNear || z > thresholdFar) {
+				mesh.addVertex(ofVec3f::zero());
+			} else {
+				mesh.addVertex(worldCoords[index]);
+			}
+		}
+	}
+}
+
+//--------------------------------------------------------------
 void ofApp::draw(){
     
 	ofSetColor(ofColor::white);
-    
+
     if ( tracker.isInited() ){
         
         depthImg.draw(ofGetWidth()-DEPTH_WIDTH/2., 0, DEPTH_WIDTH/2., DEPTH_HEIGHT/2.);
@@ -123,33 +154,37 @@ void ofApp::draw(){
         glPointSize(2.0);
         ofPushMatrix();
         camera.begin();
-
-        //ofTranslate(ofGetWidth()/2.0, 0.);
         ofScale(100., 100., 100.);
         ofEnableDepthTest();
 
-        // draw blobs
-        for (unsigned int i=0; i < tracker.blobs.size(); i++) {
-            ofPushMatrix();
-            ofColor color;
-            color.setSaturation(200);
-            color.setBrightness(225);
-            color.setHue(ofMap(i, 0, tracker.blobs.size(), 0, 255));
+		if (bDrawRawMesh) {
+			ofSetColor(ofColor::blueSteel);
+			mesh.draw();
+		}
+		else {
+			// draw blobs
+			for (unsigned int i = 0; i < tracker.blobs.size(); i++) {
+				ofPushMatrix();
+				ofColor color;
+				color.setSaturation(200);
+				color.setBrightness(225);
+				color.setHue(ofMap(i, 0, tracker.blobs.size(), 0, 255));
 
-			ofSetColor(color);
-            // draw blobs
-            tracker.blobs[i].draw();
-            
-            ofPopMatrix();
-            
-            ofVec3f bbMax = tracker.blobs[i].boundingBoxMax;
-            ofVec3f bbMin = tracker.blobs[i].boundingBoxMin;
-            
-            ofNoFill();
-            ofDrawBox(tracker.blobs[i].centroid, tracker.blobs[i].dimensions.x, tracker.blobs[i].dimensions.y, tracker.blobs[i].dimensions.z);
-            ofFill();
-        }
-        ofSetColor(255);
+				ofSetColor(color);
+				// draw blobs
+				tracker.blobs[i].draw();
+
+				ofPopMatrix();
+
+				ofVec3f bbMax = tracker.blobs[i].boundingBoxMax;
+				ofVec3f bbMin = tracker.blobs[i].boundingBoxMin;
+
+				ofNoFill();
+				ofDrawBox(tracker.blobs[i].centroid, tracker.blobs[i].dimensions.x, tracker.blobs[i].dimensions.y, tracker.blobs[i].dimensions.z);
+				ofFill();
+			}
+		}
+
         ofDisableDepthTest();
         camera.end();
         ofPopMatrix();

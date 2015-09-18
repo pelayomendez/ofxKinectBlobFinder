@@ -13,6 +13,7 @@ class ofApp : public ofBaseApp{
 		void draw();
 
 		void updateDepthImage();
+		void updateMesh();
 
 		void keyPressed(int key);
 		void keyReleased(int key);
@@ -28,11 +29,14 @@ class ofApp : public ofBaseApp{
 		
         ofxKFW2::Device kinect;
         ofxKinectBlobFinder tracker;
-        
+		ICoordinateMapper* mapper;
+
 		ofImage depthImg;
 		ofEasyCam camera;
+		ofVboMesh mesh;
     
         ofxPanel gui;
+		ofParameter<bool> bDrawRawMesh;
 		ofParameter<int> thresh2D, minPoints, maxBlobs, trackedBlobs;
 		ofParameter<float> thresholdNear, thresholdFar, minVol, maxVol;
 		ofParameter<ofVec3f> boxMin, boxMax, thresh3D;

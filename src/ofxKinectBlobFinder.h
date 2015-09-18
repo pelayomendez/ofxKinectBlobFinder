@@ -25,7 +25,7 @@ enum ofxKinectBlobFinderResolution { BF_HIGH_RES = 1, BF_MEDIUM_RES = 2, BF_LOW_
 
 
 struct p2D3 {
-  int flag; //
+  int flag;
   ofVec3f pos;
 } ;
 
@@ -42,7 +42,7 @@ class ofxKinectBlobFinder {
       ofVec3f getTranslation();
       ofVec3f getScale();
       enum ofxKinectBlobFinderResolution getResolution();
-      bool findBlobs(   ofImage * maskImage,
+      bool findBlobs(   ofMesh* mesh,
                         const ofVec3f cropBoxMin, const ofVec3f cropBoxMax,
                         const ofVec3f thresh3D, const int thresh2D,
                         const float minVol, const float maxVol,
@@ -56,23 +56,22 @@ class ofxKinectBlobFinder {
 
 		ofxKFW2::Device * kinectPtr;
 		ICoordinateMapper * mapper;
+		enum ofxKinectBlobFinderResolution resolution;
+
         ofVec3f rotation;
         ofVec3f translation;
         ofVec3f scale;
         int width;
         int height;
-        enum ofxKinectBlobFinderResolution resolution;
+
         int kWidth;
         int kHeight;
         int kNPix;
         int nPix;
 
-        p2D3*  p3DCloud;
-        //bool lock;
+        vector<p2D3> p3DCloud;
         bool bFinderInited;
         bool bStandarized;
 
-        ofVec3f nullPoint; // xyz value considered invalid
-
-        bool createCloud(unsigned char * maskPix, const ofVec3f cropBoxMin, const ofVec3f cropBoxMax);
+        bool createCloud(ofMesh* mesh, const ofVec3f cropBoxMin, const ofVec3f cropBoxMax);
 };
