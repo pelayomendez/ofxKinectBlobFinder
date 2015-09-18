@@ -70,7 +70,7 @@ void ofApp::update(){
     if (kinect.getDepthSource()->isFrameNew()) {
 		if (!bTrackerInit) {
 			bTrackerInit = true;
-			tracker.init(&kinect, false);
+			tracker.init(DEPTH_WIDTH, DEPTH_HEIGHT, false);
 			tracker.setScale(ofVec3f(0.001));
 		}
 

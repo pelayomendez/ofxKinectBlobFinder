@@ -23,10 +23,6 @@
 #define FLAG_QUEUED -2
 #define FLAG_PROCESSED -1
 
-#define __DEFAULT_K_WIDTH 512
-#define __DEFAULT_K_HEIGHT 424
-#define __DEFAULT_K_SIZE __DEFAULT_K_WIDTH * __DEFAULT_K_HEIGHT
-
 #define __DEFAULT_RESOLUTION BF_LOW_RES
 
 #define K_RANGE_MIN 0.5f
@@ -42,7 +38,6 @@ static float cy_d = 2.4273913761751615e+02;
 // ***************************************************************************
 ofxKinectBlobFinder::ofxKinectBlobFinder() {
 	ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: creating");
-	kinectPtr = NULL;
 	setResolution(BF_MEDIUM_RES);
 	setRotation(ofVec3f::zero());
 	setTranslation(ofVec3f::zero());
@@ -52,23 +47,13 @@ ofxKinectBlobFinder::ofxKinectBlobFinder() {
 // ***************************************************************************
 //                                INIT
 // ***************************************************************************
-void ofxKinectBlobFinder::init(ofxKFW2::Device *newKinect, bool standarized) {
-
+void ofxKinectBlobFinder::init(int width, int height, bool standarized) {
 	ofLog(OF_LOG_VERBOSE, "ofxKinectBlobFinder: init");
-	if (newKinect == NULL) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - ofxKinect pointer is not assigned");
-	else if (!newKinect->isOpen()) ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - kinect not connected");
-	else {
-		bStandarized = standarized;
-		kinectPtr = newKinect;
-		kWidth = __DEFAULT_K_WIDTH; // kinectPtr->getDepthSource()->getWidth();
-		kHeight = __DEFAULT_K_HEIGHT; // kinectPtr->getDepthSource()->getHeight();
-		kNPix = kWidth*kHeight;
-		bFinderInited = setResolution(__DEFAULT_RESOLUTION);
-
-		if (kinectPtr->getSensor()->get_CoordinateMapper(&mapper) < 0) {
-			ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: init - could not acquire CoordinateMapper");
-		}
-	}
+	bStandarized = standarized;
+	kWidth = width;
+	kHeight = height;
+	kNPix = kWidth*kHeight;
+	bFinderInited = setResolution(__DEFAULT_RESOLUTION);
 }
 
 // ***************************************************************************
