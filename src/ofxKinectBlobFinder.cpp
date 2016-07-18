@@ -88,7 +88,7 @@ bool ofxKinectBlobFinder::findBlobs( ofImage * maskImage,
         return false;
     }
     if ( !maskImage->bAllocated() || (maskImage->getWidth() != kWidth) || (maskImage->getHeight() != kHeight) ||
-         (maskImage->bpp != 8) ) {
+         (maskImage->getPixels().getBitsPerPixel() != 8) ) {
              ofLog(OF_LOG_WARNING, "ofxKinectBlobFinder: findBlobs - mask image mismatch");
              return false;
     }
