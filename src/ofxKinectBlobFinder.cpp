@@ -102,8 +102,11 @@ bool ofxKinectBlobFinder::findBlobs( ofImage * maskImage,
     int lastQueued = 0;
     int pixIndex = 0;
 
-    int pixelsToProcess = nPix;
-    int queue[nPix];
+   int pixelsToProcess = nPix; 
+   //int queue[nPix]; 
+   vector<int> queue; 
+   queue.resize(nPix); 
+
 
     blobs.clear();
     int numBlobs = 0;
